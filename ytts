@@ -15,6 +15,7 @@ Usage: $0 [options] <input_file> [output_file]
 Options:
   -h, --help         Show this help message and exit
   -v, --voice VOICE  Specify the voice to use (default: alloy)
+  -s, --speed SPEED  Specify the speech speed (default: 1.0)
 
 If [output_file] is not specified, it defaults to <input_file>.mp3
 EOF
@@ -22,6 +23,7 @@ EOF
 
 # Parse command line arguments
 VOICE="alloy"
+SPEED="1.0"
 while [[ $# -gt 0 ]]; do
     case $1 in
         -h|--help)
@@ -30,6 +32,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -v|--voice)
             VOICE="$2"
+            shift 2
+            ;;
+        -s|--speed)
+            SPEED="$2"
             shift 2
             ;;
         *)
@@ -172,9 +178,14 @@ run_parallel $MAX_CONCURRENT_JOBS "$TEMP_DIR"/chunk_*.txt
 
 # Combine all chunk files into the final output
 echo "Combining audio chunks..."
-ffmpeg -i "concat:$(ls ${TEMP_DIR}/*.mp3 | sort -V | tr '\n' '|')" -acodec copy "$OUTPUT_FILE"
+TEMP_OUTPUT="${TEMP_DIR}/temp_output.mp3"
+ffmpeg -i "concat:$(ls ${TEMP_DIR}/*.mp3 | sort -V | tr '\n' '|')" -acodec copy "$TEMP_OUTPUT"
+
+# Apply speed adjustment
+echo "Applying speed adjustment..."
+ffmpeg -i "$TEMP_OUTPUT" -filter:a "atempo=$SPEED" "$OUTPUT_FILE"
 
 # Clean up temporary files
 rm -rf "$TEMP_DIR"
 
-echo "Text-to-speech conversion completed. Audio saved as '$OUTPUT_FILE'."
+echo "Text-to-speech conversion completed. Audio saved as '$OUTPUT_FILE' with speed $SPEED."
