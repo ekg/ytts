@@ -1,0 +1,176 @@
+#!/bin/bash
+
+API_ENDPOINT="https://api.openai.com/v1/audio/speech"
+# error out if API_KEY is not set
+if [[ -z "$API_KEY" ]]; then
+    echo "Error: API_KEY is not set. Please set your OpenAI API key."
+    exit 1
+fi
+MAX_CHUNK_SIZE=4000
+MAX_CONCURRENT_JOBS=4
+
+print_help() {
+    cat << EOF
+Usage: $0 [options] <input_file>
+Options:
+  -h, --help         Show this help message and exit
+  -o, --output FILE  Specify the output file (default: input_file_name.mp3)
+  -v, --voice VOICE  Specify the voice to use (default: alloy)
+EOF
+}
+
+# Parse command line arguments
+VOICE="alloy"
+OUTPUT_FILE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        -o|--output)
+            OUTPUT_FILE="$2"
+            shift 2
+            ;;
+        -v|--voice)
+            VOICE="$2"
+            shift 2
+            ;;
+        *)
+            INPUT_FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$INPUT_FILE" ]]; then
+    echo "Error: Input file is required."
+    print_help
+    exit 1
+fi
+
+if [[ -z "$OUTPUT_FILE" ]]; then
+    OUTPUT_FILE="${INPUT_FILE%.*}.mp3"
+fi
+
+# Check if input file exists
+if [[ ! -f "$INPUT_FILE" ]]; then
+    echo "Error: Input file '$INPUT_FILE' not found."
+    exit 1
+fi
+
+split_text() {
+    local text="$1"
+    local chunk_size=$2
+    local temp_dir="$3"
+    local chunk=""
+    local chunk_number=0
+
+    # Split the text into sentences
+    IFS=$'\n' read -d '' -ra sentences <<< "$(echo "$text" | sed -e 's/\([.!?]\) /\1\n/g')"
+
+    for sentence in "${sentences[@]}"; do
+        if [[ ${#chunk} -ge $chunk_size ]]; then
+            # Write the current chunk to a file
+            echo "$chunk" > "${temp_dir}/chunk_${chunk_number}.txt"
+            chunk_number=$((chunk_number + 1))
+            chunk=""
+        fi
+
+        # If adding this sentence would exceed the chunk size, split on whitespace
+        if [[ $((${#chunk} + ${#sentence})) -gt $chunk_size ]]; then
+            # Split the sentence into words
+            read -ra words <<< "$sentence"
+            for word in "${words[@]}"; do
+                if [[ $((${#chunk} + ${#word})) -gt $chunk_size ]]; then
+                    # Write the current chunk to a file
+                    echo "$chunk" > "${temp_dir}/chunk_${chunk_number}.txt"
+                    chunk_number=$((chunk_number + 1))
+                    chunk="$word "
+                else
+                    chunk+="$word "
+                fi
+            done
+        else
+            chunk+="$sentence "
+        fi
+    done
+
+    # Write the last chunk if it's not empty
+    if [[ -n "$chunk" ]]; then
+        echo "$chunk" > "${temp_dir}/chunk_${chunk_number}.txt"
+    fi
+}
+
+make_tts_request() {
+    local chunk="$1"
+    local output_file="$2"
+
+    # Create a temporary JSON file
+    local temp_json=$(mktemp)
+
+    # Create JSON payload
+    jq -n --arg text "$chunk" --arg voice "$VOICE" \
+        '{model: "tts-1", input: $text, voice: $voice}' > "$temp_json"
+
+    # Make the API request using curl
+    curl --request POST \
+         --silent \
+         --url "$API_ENDPOINT" \
+         -H "Authorization: Bearer $API_KEY" \
+         -H 'Content-Type: application/json' \
+         --data @"$temp_json" \
+         --output "$output_file"
+
+    # Clean up temporary file
+    rm "$temp_json"
+}
+
+process_chunk() {
+    local chunk_file="$1"
+    echo "Processing chunk: $chunk_file"
+    CHUNK_CONTENT=$(cat "$chunk_file")
+    
+    CHUNK_OUTPUT="${TEMP_DIR}/$(basename "$chunk_file" .txt).mp3"
+    make_tts_request "$CHUNK_CONTENT" "$CHUNK_OUTPUT"
+}
+
+run_parallel() {
+    local max_jobs=$1
+    shift
+    local job_queue=()
+
+    for chunk_file in "$@"; do
+        process_chunk "$chunk_file" &
+        job_queue+=($!)
+        
+        if [[ ${#job_queue[@]} -eq $max_jobs ]]; then
+            wait -n
+            job_queue=($(jobs -p))
+        fi
+    done
+
+    wait
+}
+
+# Create a temporary directory for chunk files
+TEMP_DIR=$(mktemp -d)
+
+# Read the entire input file
+INPUT_TEXT=$(cat "$INPUT_FILE")
+
+# Split the text into chunks and write to files
+split_text "$INPUT_TEXT" $MAX_CHUNK_SIZE "$TEMP_DIR"
+
+# Process chunks in parallel
+echo "Processing chunks in parallel..."
+run_parallel $MAX_CONCURRENT_JOBS "$TEMP_DIR"/chunk_*.txt
+
+# Combine all chunk files into the final output
+echo "Combining audio chunks..."
+ffmpeg -i "concat:$(ls ${TEMP_DIR}/*.mp3 | tr '\n' '|')" -acodec copy "$OUTPUT_FILE"
+
+# Clean up temporary files
+rm -rf "$TEMP_DIR"
+
+echo "Text-to-speech conversion completed. Audio saved as '$OUTPUT_FILE'."
