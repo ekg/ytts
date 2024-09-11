@@ -6,8 +6,8 @@ if [[ -z "$API_KEY" ]]; then
     echo "Error: API_KEY is not set. Please set your OpenAI API key."
     exit 1
 fi
-MAX_CHUNK_SIZE=4000
-MAX_CONCURRENT_JOBS=4
+MAX_CHUNK_SIZE=1000
+MAX_CONCURRENT_JOBS=8
 
 print_help() {
     cat << EOF
