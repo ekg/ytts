@@ -168,7 +168,7 @@ run_parallel $MAX_CONCURRENT_JOBS "$TEMP_DIR"/chunk_*.txt
 
 # Combine all chunk files into the final output
 echo "Combining audio chunks..."
-ffmpeg -i "concat:$(ls ${TEMP_DIR}/*.mp3 | tr '\n' '|')" -acodec copy "$OUTPUT_FILE"
+ffmpeg -i "concat:$(ls ${TEMP_DIR}/*.mp3 | sort -V | tr '\n' '|')" -acodec copy "$OUTPUT_FILE"
 
 # Clean up temporary files
 rm -rf "$TEMP_DIR"
