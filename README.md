@@ -17,10 +17,15 @@ YTTS is a bash script that converts text files to speech using OpenAI's Text-to-
    ```
    chmod +x ytts
    ```
-3. Set your OpenAI API key as an environment variable:
-   ```
-   export API_KEY="your-api-key-here"
-   ```
+3. Set your OpenAI API key in one of two ways:
+   a. Create a file `~/.ytts/key` with the following content:
+      ```
+      export YTTS_API_KEY="your-api-key-here"
+      ```
+   b. Or, set it as an environment variable:
+      ```
+      export YTTS_API_KEY="your-api-key-here"
+      ```
 
 ## Usage
 
@@ -62,7 +67,9 @@ The script supports all voices provided by OpenAI's Text-to-Speech API. As of th
 
 ## Troubleshooting
 
-1. If you encounter an error about the API key not being set, make sure you've exported the `API_KEY` environment variable with your OpenAI API key.
+1. If you encounter an error about the API key not being set, make sure you've either:
+   - Created the `~/.ytts/key` file with your OpenAI API key, or
+   - Exported the `YTTS_API_KEY` environment variable with your OpenAI API key.
 
 2. If you're having issues with ffmpeg, ensure it's installed and accessible in your system's PATH.
 

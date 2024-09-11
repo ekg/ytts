@@ -1,9 +1,13 @@
 #!/bin/bash
 
 API_ENDPOINT="https://api.openai.com/v1/audio/speech"
-# error out if API_KEY is not set
-if [[ -z "$API_KEY" ]]; then
-    echo "Error: API_KEY is not set. Please set your OpenAI API key."
+# Source API key from ~/.ytts/key if it exists
+if [[ -f ~/.ytts/key ]]; then
+    source ~/.ytts/key
+fi
+# error out if YTTS_API_KEY is not set
+if [[ -z "$YTTS_API_KEY" ]]; then
+    echo "Error: YTTS_API_KEY is not set. Please set your OpenAI API key in ~/.ytts/key or as an environment variable."
     exit 1
 fi
 MAX_CHUNK_SIZE=1000
@@ -127,7 +131,7 @@ make_tts_request() {
     curl --request POST \
          --silent \
          --url "$API_ENDPOINT" \
-         -H "Authorization: Bearer $API_KEY" \
+         -H "Authorization: Bearer $YTTS_API_KEY" \
          -H 'Content-Type: application/json' \
          --data @"$temp_json" \
          --output "$output_file"
