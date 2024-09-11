@@ -11,12 +11,12 @@ MAX_CONCURRENT_JOBS=8
 
 print_help() {
     cat << EOF
-Usage: $0 [options] <input_file> <output_file>
+Usage: $0 [options] <input_file> [output_file]
 Options:
   -h, --help         Show this help message and exit
   -v, --voice VOICE  Specify the voice to use (default: alloy)
 
-If <output_file> is not specified, it defaults to whatever.txt.mp3
+If [output_file] is not specified, it defaults to <input_file>.mp3
 EOF
 }
 
@@ -54,7 +54,7 @@ if [[ -z "$INPUT_FILE" ]]; then
 fi
 
 if [[ -z "$OUTPUT_FILE" ]]; then
-    OUTPUT_FILE="whatever.txt.mp3"
+    OUTPUT_FILE="${INPUT_FILE}.mp3"
 fi
 
 # Check if input file exists
